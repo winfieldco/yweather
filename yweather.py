@@ -36,7 +36,8 @@ Constants:
     UNITS: a dict that maps data names to units.
 
 """
-
+import urllib
+import urllib2
 try:
     from urllib.request import urlopen
     from urllib.parse import quote
@@ -51,7 +52,9 @@ import xml.etree.ElementTree
 WOEID_LOOKUP_URL = ("http://locdrop.query.yahoo.com/v1/public/yql?"
                     "q=select%20woeid%20from%20locdrop.placefinder%20"
                     "where%20text='{0}'")
-WEATHER_URL = "http://xml.weather.yahoo.com/forecastrss?w={0}&u={1}&d=10"
+WEATHER_URL = "https://query.yahooapis.com/v1/public/yql?" + urllib.urlencode({'q':"select * from weather.forecast where woeid=WOEID and u='UNITS'"}) + "&format=xml"
+WEATHER_URL = WEATHER_URL.replace('WOEID', '{0}')
+WEATHER_URL = WEATHER_URL.replace('UNITS', '{1}')
 LID_LOOKUP_URL = WEATHER_URL
 LID_WEATHER_URL = "http://xml.weather.yahoo.com/forecastrss/{0}_{1}.xml"
 WEATHER_NS = "http://xml.weather.yahoo.com/ns/rss/1.0"
@@ -101,15 +104,26 @@ class Client(object):
         fetch_lid: fetch a location's LID.
         fetch_woeid: fetch a location's WOEID.
         fetch_weather: fetch a location's weather.
+        is_woeid_valid: Returns true if woeid is valid, false otherwise
 
     """
+    def is_woeid_valid(self, woeid):
+
+        rss = self._fetch_xml(WEATHER_URL.format(woeid, "f"))
+
+        try:
+            link = rss.find("results/channel/link").text
+        except AttributeError:
+            return False
+
+        return True
 
     def fetch_lid(self, woeid):
         """Fetch a location's corresponding LID.
 
         Args:
             woeid: (string) the location's WOEID.
-        
+
         Returns:
             a string containing the requested LID or None if the LID could
             not be found.
@@ -121,13 +135,15 @@ class Client(object):
                 the XML document.
 
         """
+        raise NotImplementedError('Has not been updated for YQL')
+
         rss = self._fetch_xml(LID_LOOKUP_URL.format(woeid, "f"))
 
         # We are pulling the LID from the permalink tag in the XML file
         # returned by Yahoo.
 
         try:
-            link = rss.find("channel/link").text
+            link = rss.find("results/channel/link").text
         except AttributeError:
             return None
 
@@ -176,6 +192,7 @@ class Client(object):
             url = WEATHER_URL.format(id, units)
 
         rss = self._fetch_xml(url)
+        rss = rss.find("results")
 
         if rss.find("channel/item/title").text == "City not found":
             return None
@@ -285,6 +302,8 @@ class Client(object):
                 the XML document.
 
         """
+        raise NotImplementedError('Has not been updated for YQL')
+
         rss = self._fetch_xml(
             WOEID_LOOKUP_URL.format(quote(location)))
         try:
